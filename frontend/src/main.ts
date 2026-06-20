@@ -1,6 +1,6 @@
 import { Game } from './game';
 import type { LevelData } from './types';
-import { healthCheck } from './api';
+import { healthCheck, getLevelList } from './api';
 
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
 const game = new Game(canvas);
@@ -21,7 +21,7 @@ const btnReset = document.getElementById('btn-reset') as HTMLButtonElement;
 const btnHint = document.getElementById('btn-hint') as HTMLButtonElement;
 const btnNext = document.getElementById('btn-next') as HTMLButtonElement;
 
-const MAX_LEVELS = 3;
+let MAX_LEVELS = 3;
 
 game.setCallbacks({
   onLevelChange: (level: LevelData) => {
@@ -101,16 +101,35 @@ async function init(): Promise<void> {
   hintTitleEl.textContent = '加载中...';
   hintTextEl.textContent = '正在连接星界数据库...';
 
+  let startLevel = 1;
+  const urlParams = new URLSearchParams(window.location.search);
+  const levelParam = urlParams.get('level');
+  if (levelParam) {
+    const parsedLevel = parseInt(levelParam);
+    if (!isNaN(parsedLevel) && parsedLevel > 0) {
+      startLevel = parsedLevel;
+    }
+  }
+
   try {
     const backendOk = await healthCheck();
     if (!backendOk) {
       console.warn('后端未启动，尝试使用嵌入数据...');
+    } else {
+      const levels = await getLevelList();
+      if (levels.length > 0) {
+        MAX_LEVELS = levels.length;
+        const maxId = Math.max(...levels.map(l => l.id));
+        if (startLevel > maxId) {
+          startLevel = levels[0].id;
+        }
+      }
     }
   } catch {
     console.warn('后端健康检查失败');
   }
 
-  const loaded = await game.loadLevel(1);
+  const loaded = await game.loadLevel(startLevel);
   if (!loaded) {
     hintTitleEl.textContent = '⚠️ 加载失败';
     hintTextEl.textContent = '无法加载关卡数据，请确保后端服务器已启动 (npm run dev:backend)';
